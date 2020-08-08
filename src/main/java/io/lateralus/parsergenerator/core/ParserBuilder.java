@@ -1,14 +1,17 @@
 package io.lateralus.parsergenerator.core;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Table;
 import io.lateralus.parsergenerator.codegenerator.CodeGenerator;
 
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -17,7 +20,7 @@ import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
 
 public class ParserBuilder {
 
-	public static void main(String[] args) throws Grammar.Builder.GrammarParserException, GrammarException {
+	public static void main(String[] args) throws GrammarParserException, GrammarException {
 
 		// Canonical Collection :
 		//State 0 :
@@ -222,33 +225,33 @@ public class ParserBuilder {
 
 
 		// First parse the input grammar into an internal representation
-		Grammar grammar = Grammar.builder()
-				.from(grammarString)
+		Grammar grammar = GrammarParser
+				.builderFrom(grammarString)
 				.build();
 
 		// Take the grammar and determine the canonical collection
 		Set<State> canonicalCollection = createCanonicalCollection(grammar);
 		// From the canonical collection we create the goto table and the action table.
-		Map<StateNonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
-		Map<StateTerminal, Action> actionTable = buildActionTable(canonicalCollection);
+		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
+		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
 
 		canonicalCollection.forEach(System.out::println);
 		System.out.println();
-		gotoTable.forEach((a, b) -> System.out.println(a + " --> " + b));
+		gotoTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
 		System.out.println();
-		actionTable.forEach((a, b) -> System.out.println(a + " --> " + b));
+		actionTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
 
 		CodeGenerator codeGenerator = new CodeGenerator(Path.of(args[0]));
 		codeGenerator.outputParser();
 	}
 
-	private static Map<StateTerminal, Action> buildActionTable(Set<State> canonicalCollection) {
-		Map<StateTerminal, Action> actionTable = new HashMap<>();
+	private static Table<State, Terminal, Action> buildActionTable(Set<State> canonicalCollection) {
+		Table<State, Terminal, Action> actionTable = HashBasedTable.create();
 		for (State state : canonicalCollection) {
 
 			for (Symbol symbol : state.getTransitions().keySet()) {
 				if (symbol.isTerminal()) {
-					updateActionTable(actionTable, new StateTerminal(state, (Terminal)symbol),
+					updateActionTable(actionTable, state, (Terminal)symbol,
 							Action.shift(state.getTransitions().get(symbol)));
 				}
 			}
@@ -259,34 +262,33 @@ public class ParserBuilder {
 				}
 
 				if (item.getProduction().getLhs() == NonTerminal.START) {
-					updateActionTable(actionTable, new StateTerminal(state, Terminal.EOF), Action.accept());
+					updateActionTable(actionTable, state, Terminal.EOF, Action.accept());
 				} else {
-					updateActionTable(actionTable, new StateTerminal(state, item.getLookahead()),
-							Action.reduce(item.getProduction()));
+					updateActionTable(actionTable, state, item.getLookahead(), Action.reduce(item.getProduction()));
 				}
 			}
 		}
 		return actionTable;
 	}
 
-	private static void updateActionTable(Map<StateTerminal, Action> actionTable, StateTerminal stateTerminal, Action action) {
-		Action currentAction = actionTable.get(stateTerminal);
+	private static void updateActionTable(Table<State, Terminal, Action> actionTable, State state, Terminal terminal, Action action) {
+		Action currentAction = actionTable.get(state, terminal);
 		if (currentAction != null) {
 			throw new IllegalStateException("Grammar leads to a " + currentAction.getActionType() + "-" +
-					action.getActionType() + " conflict. State / terminal: " + stateTerminal);
+					action.getActionType() + " conflict. State: " + state + ", terminal: " + terminal);
 		}
-
-		actionTable.put(stateTerminal, action);
+		actionTable.put(state, terminal, action);
 	}
 
-	protected static Map<StateNonTerminal, State> buildGotoTable(Set<State> canonicalCollection) {
-		Map<StateNonTerminal, State> gotoTable = new HashMap<>();
+	protected static Table<State, NonTerminal, State> buildGotoTable(Set<State> canonicalCollection) {
+		Table<State, NonTerminal, State> gotoTable = HashBasedTable.create();
+
 		for (State state : canonicalCollection) {
 			for (Map.Entry<Symbol, State> entry : state.getTransitions().entrySet()) {
 				if (entry.getKey().isTerminal()) {
 					continue;
 				}
-				gotoTable.put(new StateNonTerminal(state, (NonTerminal)entry.getKey()), entry.getValue());
+				gotoTable.put(state, (NonTerminal)entry.getKey(), entry.getValue());
 			}
 		}
 
@@ -299,7 +301,7 @@ public class ParserBuilder {
 		// it was already contained in the canonical collection. See the commented code below in this method. I replaced
 		// this with a map that holds the transitions. Test to be sure!!!!
 		Set<State> canonicalCollection = new /*Linked*/HashSet<>();
-		Map<StateSymbol, State> transitions = new HashMap<>();
+		Table<State, Symbol, State> transitions = HashBasedTable.create();
 
 		Deque<State> workList = new ArrayDeque<>();
 
@@ -335,7 +337,7 @@ public class ParserBuilder {
 					workList.push(nextState);
 				}
 
-				transitions.put(new StateSymbol(currentState, expectedSymbol), nextState);
+				transitions.put(currentState, expectedSymbol, nextState);
 
 				//if (isNew) {
 				//	workList.push(nextState);
@@ -350,9 +352,8 @@ public class ParserBuilder {
 			}
 		}
 
-		for (Map.Entry<StateSymbol, State> entry : transitions.entrySet()) {
-			StateSymbol stateSymbol = entry.getKey();
-			stateSymbol.getState().getTransitions().put(stateSymbol.getSymbol(), entry.getValue());
+		for (Table.Cell<State, Symbol, State> cell : transitions.cellSet()) {
+			cell.getRowKey().getTransitions().put(cell.getColumnKey(), cell.getValue());
 		}
 
 		return canonicalCollection;
@@ -400,17 +401,19 @@ public class ParserBuilder {
 	}
 
 	private static Set<Terminal> determineLookahead(Grammar grammar, Item item) {
-		// Als productie A -> a b C d, dan lengte 4 dus 4-1=3 (A -> a b C . d) Dit betekent dat het volgende item zo is:
-		// (A -> a b C d .) Dus de lookahead is gewoon de lookahead van het huidige item.
-		if (item.getPosition() == item.getProduction().getRhs().size() - 1) {
+		int nextPosition = item.getPosition() + 1;
+		List<Symbol> rhs = item.getProduction().getRhs();
+
+		// If the next position is equal to the length of the rhs the lookahead is the lookahead of the item.
+		if (nextPosition == rhs.size()) {
 			return Set.of(item.getLookahead());
 		}
 
-		Map<Symbol, Set<Terminal>> firstSets = grammar.calculateFirstSets();
-
-		// TODO: We now wrap this in a HashSet because the method returns a SetView instance but we want to remove
-		//  EPSILON and add the current lookahead, which is not possible on a SetView. Find some more elegant solution.
-		Set<Terminal> lookahead = new HashSet<>(Grammar.calculateFirstSetsForRhs(item.getProduction().getRhs(), firstSets, item.getPosition() + 1));
+		// Create a sublist that holds the symbols after the dot pointer in the item. Note that since the sublist is
+		// basically a view on a list this is a cheap operation. Alternatively we could have the iteration in
+		// calculateFirstSetForRemainingSymbols start at the next position.
+		List<Symbol> remainingSymbols = rhs.subList(nextPosition, rhs.size());
+		Set<Terminal> lookahead = grammar.calculateFirstSetForRemainingSymbols(remainingSymbols);
 
 		if (lookahead.remove(EPSILON)) {
 			lookahead.add(item.getLookahead());
