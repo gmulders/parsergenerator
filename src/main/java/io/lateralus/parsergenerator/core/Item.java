@@ -1,5 +1,7 @@
 package io.lateralus.parsergenerator.core;
 
+import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
+
 /**
  * Represents an LR(1) item of which a {@link State} is made of.
  *
@@ -81,6 +83,11 @@ public class Item {
         if (production.getRhs().size() == position) {
             return null;
         }
-        return production.getRhs().get(position);
+        Symbol expectedSymbol = production.getRhs().get(position);
+        // Don't return EPSILON, since it is not a real non-terminal; the lexer will never return an "epsilon" token.
+        if (expectedSymbol == EPSILON) {
+            return null;
+        }
+        return expectedSymbol;
     }
 }

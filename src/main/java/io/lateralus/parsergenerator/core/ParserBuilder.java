@@ -2,7 +2,6 @@ package io.lateralus.parsergenerator.core;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Table;
 import io.lateralus.parsergenerator.codegenerator.CodeGenerator;
@@ -22,189 +21,136 @@ public class ParserBuilder {
 
 	public static void main(String[] args) throws GrammarParserException, GrammarException {
 
-		// Canonical Collection :
-		//State 0 :
-		//S' -> .E , [$]
-		//E -> .T plus E , [$]
-		//E -> .T , [$]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [$]
-		//T -> .F times T , [$]
-		//F -> .id , [times]
-		//F -> .id , [$]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [$]
-		//F -> .left E right , [plus]
+		// https://zaa.ch/jison/try/usf/index.html
+		// %%
 		//
-		//State 1 :
-		//E -> T. , [$]
-		//E -> T .plus E , [$]
+		//E
+		//    : T X
+		//    ;
+		//X
+		//    : plus T X
+		//    | %empty
+		//    ;
 		//
-		//State 2 :
-		//S' -> E. , [$]
+		//T
+		//    : F Y
+		//    ;
 		//
-		//State 3 :
-		//F -> left .E right , [times]
-		//F -> left .E right , [$]
-		//F -> left .E right , [plus]
-		//E -> .T plus E , [right]
-		//E -> .T , [right]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [right]
-		//T -> .F times T , [right]
-		//F -> .id , [times]
-		//F -> .id , [right]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [right]
-		//F -> .left E right , [plus]
+		//Y
+		//    : times F Y
+		//    | %empty
+		//    ;
 		//
-		//State 4 :
-		//T -> F .times T , [plus]
-		//T -> F. , [plus]
-		//T -> F .times T , [$]
-		//T -> F. , [$]
-		//
-		//State 5 :
-		//F -> id. , [times]
-		//F -> id. , [$]
-		//F -> id. , [plus]
-		//
-		//State 6 :
-		//E -> T plus .E , [$]
-		//E -> .T plus E , [$]
-		//E -> .T , [$]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [$]
-		//T -> .F times T , [$]
-		//F -> .id , [times]
-		//F -> .id , [$]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [$]
-		//F -> .left E right , [plus]
-		//
-		//State 7 :
-		//E -> T .plus E , [right]
-		//E -> T. , [right]
-		//
-		//State 8 :
-		//F -> left E .right , [times]
-		//F -> left E .right , [$]
-		//F -> left E .right , [plus]
-		//
-		//State 9 :
-		//F -> left .E right , [times]
-		//F -> left .E right , [right]
-		//F -> left .E right , [plus]
-		//E -> .T plus E , [right]
-		//E -> .T , [right]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [right]
-		//T -> .F times T , [right]
-		//F -> .id , [times]
-		//F -> .id , [right]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [right]
-		//F -> .left E right , [plus]
-		//
-		//State 10 :
-		//T -> F .times T , [plus]
-		//T -> F. , [plus]
-		//T -> F .times T , [right]
-		//T -> F. , [right]
-		//
-		//State 11 :
-		//F -> id. , [times]
-		//F -> id. , [right]
-		//F -> id. , [plus]
-		//
-		//State 12 :
-		//T -> F times .T , [plus]
-		//T -> F times .T , [$]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [$]
-		//T -> .F times T , [$]
-		//F -> .id , [times]
-		//F -> .id , [$]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [$]
-		//F -> .left E right , [plus]
-		//
-		//State 13 :
-		//E -> T plus E. , [$]
-		//
-		//State 14 :
-		//E -> T plus .E , [right]
-		//E -> .T plus E , [right]
-		//E -> .T , [right]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [right]
-		//T -> .F times T , [right]
-		//F -> .id , [times]
-		//F -> .id , [right]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [right]
-		//F -> .left E right , [plus]
-		//
-		//State 15 :
-		//F -> left E right. , [$]
-		//F -> left E right. , [plus]
-		//F -> left E right. , [times]
-		//
-		//State 16 :
-		//F -> left E .right , [times]
-		//F -> left E .right , [right]
-		//F -> left E .right , [plus]
-		//
-		//State 17 :
-		//T -> F times .T , [plus]
-		//T -> F times .T , [right]
-		//T -> .F times T , [plus]
-		//T -> .F , [plus]
-		//T -> .F , [right]
-		//T -> .F times T , [right]
-		//F -> .id , [times]
-		//F -> .id , [right]
-		//F -> .id , [plus]
-		//F -> .left E right , [times]
-		//F -> .left E right , [right]
-		//F -> .left E right , [plus]
-		//
-		//State 18 :
-		//T -> F times T. , [plus]
-		//T -> F times T. , [$]
-		//
-		//State 19 :
-		//E -> T plus E. , [right]
-		//
-		//State 20 :
-		//F -> left E right. , [right]
-		//F -> left E right. , [plus]
-		//F -> left E right. , [times]
-		//
-		//State 21 :
-		//T -> F times T. , [plus]
-		//T -> F times T. , [right]
+		//F   : left E right
+		//    | id
+		//    ;
 
+		// 0
+		//$accept -> .E $end #lookaheads= $end
+		//E -> .T X #lookaheads= $end
+		//T -> .F Y #lookaheads= $end plus
+		//F -> .left E right #lookaheads= $end plus times
+		//F -> .id #lookaheads= $end plus times
+		// 1
+		//$accept -> E .$end #lookaheads= $end
+		// 2
+		//E -> T .X #lookaheads= $end
+		//X -> .plus T X #lookaheads= $end
+		//X -> . #lookaheads= $end
+		// 3
+		//T -> F .Y #lookaheads= $end plus
+		//Y -> .times F Y #lookaheads= $end plus
+		//Y -> . #lookaheads= $end plus
+		// 4
+		//F -> left .E right #lookaheads= $end plus times
+		//E -> .T X #lookaheads= right
+		//T -> .F Y #lookaheads= plus right
+		//F -> .left E right #lookaheads= plus right times
+		//F -> .id #lookaheads= plus right times
+		// 5
+		//F -> id . #lookaheads= $end plus times
+		// 6
+		//E -> T X . #lookaheads= $end
+		// 7
+		//X -> plus .T X #lookaheads= $end
+		//T -> .F Y #lookaheads= $end plus
+		//F -> .left E right #lookaheads= $end plus times
+		//F -> .id #lookaheads= $end plus times
+		// 8
+		//T -> F Y . #lookaheads= $end plus
+		// 9
+		//Y -> times .F Y #lookaheads= $end plus
+		//F -> .left E right #lookaheads= $end plus times
+		//F -> .id #lookaheads= $end plus times
+		// 10
+		//F -> left E .right #lookaheads= $end plus times
+		// 11
+		//E -> T .X #lookaheads= right
+		//X -> .plus T X #lookaheads= right
+		//X -> . #lookaheads= right
+		// 12
+		//T -> F .Y #lookaheads= plus right
+		//Y -> .times F Y #lookaheads= plus right
+		//Y -> . #lookaheads= plus right
+		// 13
+		//F -> left .E right #lookaheads= plus right times
+		//E -> .T X #lookaheads= right
+		//T -> .F Y #lookaheads= plus right
+		//F -> .left E right #lookaheads= plus right times
+		//F -> .id #lookaheads= plus right times
+		// 14
+		//F -> id . #lookaheads= plus right times
+		// 15
+		//X -> plus T .X #lookaheads= $end
+		//X -> .plus T X #lookaheads= $end
+		//X -> . #lookaheads= $end
+		// 16
+		//Y -> times F .Y #lookaheads= $end plus
+		//Y -> .times F Y #lookaheads= $end plus
+		//Y -> . #lookaheads= $end plus
+		// 17
+		//F -> left E right . #lookaheads= $end plus times
+		// 18
+		//E -> T X . #lookaheads= right
+		// 19
+		//X -> plus .T X #lookaheads= right
+		//T -> .F Y #lookaheads= plus right
+		//F -> .left E right #lookaheads= plus right times
+		//F -> .id #lookaheads= plus right times
+		// 20
+		//T -> F Y . #lookaheads= plus right
+		// 21
+		//Y -> times .F Y #lookaheads= plus right
+		//F -> .left E right #lookaheads= plus right times
+		//F -> .id #lookaheads= plus right times
+		// 22
+		//F -> left E .right #lookaheads= plus right times
+		// 23
+		//X -> plus T X . #lookaheads= $end
+		// 24
+		//Y -> times F Y . #lookaheads= $end plus
+		// 25
+		//X -> plus T .X #lookaheads= right
+		//X -> .plus T X #lookaheads= right
+		//X -> . #lookaheads= right
+		// 26
+		//Y -> times F .Y #lookaheads= plus right
+		//Y -> .times F Y #lookaheads= plus right
+		//Y -> . #lookaheads= plus right
+		// 27
+		//F -> left E right . #lookaheads= plus right times
+		// 28
+		//X -> plus T X . #lookaheads= right
+		// 29
+		//Y -> times F Y . #lookaheads= plus right
 
-		String grammarString =
-				"E -> T + E\n" +
-				"E -> T\n" +
-				"T -> F * T\n" +
-				"T -> F\n" +
-				"F -> ( E )\n" +
-				"F -> a";
+//		String grammarString =
+//				"E -> T + E\n" +
+//				"E -> T\n" +
+//				"T -> F * T\n" +
+//				"T -> F\n" +
+//				"F -> ( E )\n" +
+//				"F -> a";
 
         // This grammar string does not work yet; we need to add some sort of annotation so that we know what the name
 		// for the node that we will generate should be.
@@ -216,13 +162,12 @@ public class ParserBuilder {
 //				"F (Factor) -> left E right\n" +
 //				"F -> id\n";
 
-//		String grammarString =
-//				"E -> T X\n" +
-//				"X -> plus T X | ε\n" +
-//				"T -> F Y\n" +
-//				"Y -> times F Y | ε\n" +
-//				"F -> left E right | id";
-
+		String grammarString =
+				"E -> T X\n" +
+				"X -> plus T X | ε\n" +
+				"T -> F Y\n" +
+				"Y -> times F Y | ε\n" +
+				"F -> left E right | id";
 
 		// First parse the input grammar into an internal representation
 		Grammar grammar = GrammarParser
@@ -235,7 +180,10 @@ public class ParserBuilder {
 		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
 		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
 
-		canonicalCollection.forEach(System.out::println);
+		int i = 0;
+		for (State state : canonicalCollection) {
+			System.out.println(String.format("%02d", i++) + " " + state);
+		}
 		System.out.println();
 		gotoTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
 		System.out.println();
