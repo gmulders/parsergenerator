@@ -10,14 +10,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.google.common.collect.Multimaps.toMultimap;
 import static io.lateralus.parsergenerator.core.NonTerminal.START;
 import static io.lateralus.parsergenerator.core.Terminal.EOF;
 import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
+import static java.util.function.Function.identity;
 import static java.util.function.Predicate.not;
 
 /**
@@ -33,6 +32,8 @@ public class Grammar {
 	 */
 	private static final Set<Terminal> EPSILON_SET = Set.of(EPSILON);
 
+	private final Set<Symbol> symbols;
+
 	private final Set<Terminal> terminals;
 
 	private final Set<NonTerminal> nonTerminals;
@@ -45,12 +46,14 @@ public class Grammar {
 
 	private final Map<NonTerminal, Set<Terminal>> followSets;
 
-	private Grammar(Set<Terminal> terminals,
+	private Grammar(Set<Symbol> symbols,
+	                Set<Terminal> terminals,
 	                Set<NonTerminal> nonTerminals,
 	                SetMultimap<NonTerminal, Production> productions,
 	                NonTerminal sentenceSymbol,
 	                Map<Symbol, Set<Terminal>> firstSets,
 	                Map<NonTerminal, Set<Terminal>> followSets) {
+		this.symbols = symbols;
 		this.sentenceSymbol = sentenceSymbol;
 		this.terminals = terminals;
 		this.nonTerminals = nonTerminals;
@@ -85,15 +88,38 @@ public class Grammar {
 		return productions.get(lhs);
 	}
 
+	public Set<Symbol> getSymbols() {
+		return symbols;
+	}
+
+	public Set<Terminal> getTerminals() {
+		return terminals;
+	}
+
+	public Set<NonTerminal> getNonTerminals() {
+		return nonTerminals;
+	}
+
 	/**
 	 * Builder to create a {@link Grammar}
 	 */
 	public static class Builder {
 
 		private final List<Production> productions = new ArrayList<>();
+		private final Map<Symbol, Symbol> internedSymbols = new HashMap<>();
 
+		/**
+		 * Interns the symbols in the production and adds a production with the interned symbols to the list.
+		 * @param production The production to add
+		 * @return The current builder
+		 */
 		public Builder addProduction(Production production) {
-			productions.add(production);
+			NonTerminal lhs = (NonTerminal) internedSymbols.computeIfAbsent(production.getLhs(), identity());
+			List<Symbol> rhs = new ArrayList<>();
+			for (Symbol symbol : production.getRhs()) {
+				rhs.add(internedSymbols.computeIfAbsent(symbol, identity()));
+			}
+			productions.add(new Production(lhs, rhs));
 			return this;
 		}
 
@@ -101,9 +127,8 @@ public class Grammar {
 			return addProduction(new Production(lhs, rhs));
 		}
 
-
 		public Grammar build() throws GrammarException {
-			Set<Symbol> symbols = calculateSymbols();
+			Set<Symbol> symbols = internedSymbols.keySet();
 
 			// Check that the grammar is not augmented
 			if (symbols.contains(START)) {
@@ -119,13 +144,7 @@ public class Grammar {
 			Map<Symbol, Set<Terminal>> firstSets = calculateFirstSets(terminals, nonTerminals, productionsMap);
 			Map<NonTerminal, Set<Terminal>> followSets = calculateFollowSets(nonTerminals, productionsMap, firstSets);
 
-			return new Grammar(terminals, nonTerminals, productionsMap, START, firstSets, followSets);
-		}
-
-		private Set<Symbol> calculateSymbols() {
-			return productions.stream()
-					.flatMap(production -> Stream.concat(Stream.of(production.getLhs()), production.getRhs().stream()))
-					.collect(Collectors.toSet());
+			return new Grammar(symbols, terminals, nonTerminals, productionsMap, START, firstSets, followSets);
 		}
 
 		private Set<Terminal> calculateTerminals(Set<Symbol> symbols) {
@@ -146,7 +165,7 @@ public class Grammar {
 			return productions.stream()
 					.collect(toMultimap(
 							Production::getLhs,
-							Function.identity(),
+							identity(),
 							MultimapBuilder.hashKeys().hashSetValues()::build));
 		}
 
