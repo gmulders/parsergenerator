@@ -180,6 +180,11 @@ public class ParserBuilder {
 		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
 		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
 
+
+		for (Symbol symbol : grammar.getNonTerminals()) {
+			System.out.println(symbol + " -> " + grammar.firstSet(symbol));
+		}
+		System.out.println();
 		int i = 0;
 		for (State state : canonicalCollection) {
 			System.out.println(String.format("%02d", i++) + " " + state);
