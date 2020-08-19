@@ -17,6 +17,8 @@ public abstract class Symbol {
         this.name = name;
     }
 
+    public abstract boolean isVanishable();
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
