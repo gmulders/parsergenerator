@@ -128,6 +128,8 @@ public class Grammar {
 		}
 
 		public Grammar build() throws GrammarException {
+			calculateCanVanish();
+
 			Set<Symbol> symbols = internedSymbols.keySet();
 
 			// Check that the grammar is not augmented
@@ -145,6 +147,25 @@ public class Grammar {
 			Map<NonTerminal, Set<Terminal>> followSets = calculateFollowSets(nonTerminals, productionsMap, firstSets);
 
 			return new Grammar(symbols, terminals, nonTerminals, productionsMap, START, firstSets, followSets);
+		}
+
+		private void calculateCanVanish() {
+			boolean newFound = true;
+			while(newFound) {
+				newFound = false;
+
+				for (Production production : productions) {
+					if (!production.getLhs().canVanish() && canVanish(production.getRhs())) {
+						production.getLhs().markVanishable();
+						newFound = true;
+					}
+				}
+			}
+		}
+
+		private boolean canVanish(List<Symbol> string) {
+			return string.stream()
+					.allMatch(Symbol::canVanish);
 		}
 
 		private Set<Terminal> calculateTerminals(Set<Symbol> symbols) {

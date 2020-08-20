@@ -17,7 +17,7 @@ public abstract class Symbol {
         this.name = name;
     }
 
-    public abstract boolean isVanishable();
+    public abstract boolean canVanish();
 
     @Override
     public boolean equals(Object o) {

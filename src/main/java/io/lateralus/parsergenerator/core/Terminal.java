@@ -7,7 +7,7 @@ public class Terminal extends Symbol {
 
     public static final Terminal EPSILON = new Terminal("ε") {
         @Override
-        public boolean isVanishable() {
+        public boolean canVanish() {
             return true;
         }
     };
@@ -18,7 +18,7 @@ public class Terminal extends Symbol {
     }
 
     @Override
-    public boolean isVanishable() {
+    public boolean canVanish() {
         return false;
     }
 }

@@ -7,20 +7,19 @@ public class NonTerminal extends Symbol {
 
     public static final NonTerminal START = new NonTerminal("S'");
 
-    private final boolean isVanishable;
+    private boolean canVanish;
 
     public NonTerminal(String name) {
         super(false, name);
-        this.isVanishable = false;
-    }
-
-    public NonTerminal(String name, boolean isVanishable) {
-        super(false, name);
-        this.isVanishable = isVanishable;
+        this.canVanish = false;
     }
 
     @Override
-    public boolean isVanishable() {
-        return isVanishable;
+    public boolean canVanish() {
+        return canVanish;
+    }
+
+    public void markVanishable() {
+        canVanish = true;
     }
 }
