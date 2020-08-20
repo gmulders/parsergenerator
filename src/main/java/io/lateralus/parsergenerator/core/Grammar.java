@@ -27,11 +27,6 @@ import static java.util.function.Predicate.not;
  */
 public class Grammar {
 
-	/**
-	 * Set containing only the epsilon symbol
-	 */
-	private static final Set<Terminal> EPSILON_SET = Set.of(EPSILON);
-
 	private final Set<Symbol> symbols;
 
 	private final Set<Terminal> terminals;
@@ -104,6 +99,10 @@ public class Grammar {
 	 * Builder to create a {@link Grammar}
 	 */
 	public static class Builder {
+		/**
+		 * Set containing only the epsilon symbol
+		 */
+		private static final Set<Terminal> EPSILON_SET = Set.of(EPSILON);
 
 		private final List<Production> productions = new ArrayList<>();
 		private final Map<Symbol, Symbol> internedSymbols = new HashMap<>();
