@@ -66,7 +66,8 @@ public class GrammarParser {
 						)
 						.collect(Collectors.toList());
 				nonTerminals.add(lhs);
-				productionMap.put(lhs, rhs);
+				List<List<String>> currentRhs = productionMap.computeIfAbsent(lhs, a -> new ArrayList<>());
+				currentRhs.addAll(rhs);
 			}
 		} catch (IOException e) {
 			throw new GrammarParserException("Could not parse the grammar: \n" + grammar + "\n\n");

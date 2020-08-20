@@ -145,12 +145,12 @@ public class ParserBuilder {
 		//Y -> times F Y . #lookaheads= plus right
 
 //		String grammarString =
-//				"E -> T + E\n" +
+//				"E -> T plus E\n" +
 //				"E -> T\n" +
-//				"T -> F * T\n" +
+//				"T -> F times T\n" +
 //				"T -> F\n" +
-//				"F -> ( E )\n" +
-//				"F -> a";
+//				"F -> left E right\n" +
+//				"F -> id";
 
         // This grammar string does not work yet; we need to add some sort of annotation so that we know what the name
 		// for the node that we will generate should be.
