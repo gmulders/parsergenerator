@@ -1,5 +1,8 @@
 package io.lateralus.parsergenerator.core;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
 
 /**
@@ -12,11 +15,11 @@ public class Item {
 
     private final Production production;
 
-    private final Terminal lookahead;
+    private final Set<Terminal> lookahead;
 
     private final int position;
 
-    public Item(Production production, Terminal lookahead, int position) {
+    public Item(Production production, Set<Terminal> lookahead, int position) {
         this.production = production;
         this.lookahead = lookahead;
         this.position = position;
@@ -59,10 +62,14 @@ public class Item {
         if (i == position) {
             builder.append(" \u2022");
         }
-        builder.append(", ");
+        builder.append(", {");
 
-        builder.append(lookahead.getName())
-                .append("]");
+        String lookaheadString = lookahead.stream()
+                .map(Symbol::getName)
+                .collect(Collectors.joining(", "));
+
+        builder.append(lookaheadString)
+                .append("}]");
 
         return builder.toString();
     }
@@ -71,7 +78,7 @@ public class Item {
         return production;
     }
 
-    public Terminal getLookahead() {
+    public Set<Terminal> getLookahead() {
         return lookahead;
     }
 

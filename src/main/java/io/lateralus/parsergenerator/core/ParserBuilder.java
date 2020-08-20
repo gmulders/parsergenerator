@@ -224,6 +224,12 @@ public class ParserBuilder {
 		return actionTable;
 	}
 
+	private static void updateActionTable(Table<State, Terminal, Action> actionTable, State state, Set<Terminal> terminals, Action action) {
+		for (Terminal terminal : terminals) {
+			updateActionTable(actionTable, state, terminal, action);
+		}
+	}
+
 	private static void updateActionTable(Table<State, Terminal, Action> actionTable, State state, Terminal terminal, Action action) {
 		Action currentAction = actionTable.get(state, terminal);
 		if (currentAction != null) {
@@ -317,7 +323,7 @@ public class ParserBuilder {
 		// Note that while we do a stream here and collect to a set, we only expect the set of "start productions" to
 		// contain one element.
 		return startProductions.stream()
-				.map(startProduction -> new Item(startProduction, Terminal.EOF, 0))
+				.map(startProduction -> new Item(startProduction, Set.of(Terminal.EOF), 0))
 				.collect(Collectors.toSet());
 	}
 
@@ -342,10 +348,8 @@ public class ParserBuilder {
 				Set<Production> productions = grammar.getProductions((NonTerminal)expectedSymbol);
 
 				for (Production production : productions) {
-					for (Terminal lookahead : lookaheadSet) {
-						Item newItem = new Item(production, lookahead, 0);
-						workList.add(newItem);
-					}
+					Item newItem = new Item(production, lookaheadSet, 0);
+					workList.add(newItem);
 				}
 			}
 		}
@@ -359,7 +363,7 @@ public class ParserBuilder {
 
 		// If the next position is equal to the length of the rhs the lookahead is the lookahead of the item.
 		if (nextPosition == rhs.size()) {
-			return Set.of(item.getLookahead());
+			return item.getLookahead();
 		}
 
 		// Create a sublist that holds the symbols after the dot pointer in the item. Note that since the sublist is
@@ -369,7 +373,7 @@ public class ParserBuilder {
 		Set<Terminal> lookahead = grammar.calculateFirstSetForRemainingSymbols(remainingSymbols);
 
 		if (lookahead.remove(EPSILON)) {
-			lookahead.add(item.getLookahead());
+			lookahead.addAll(item.getLookahead());
 		}
 
 		return lookahead;
