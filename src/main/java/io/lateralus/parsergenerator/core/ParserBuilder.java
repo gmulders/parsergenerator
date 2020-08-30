@@ -10,12 +10,9 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
 
 public class ParserBuilder {
 
@@ -174,8 +171,11 @@ public class ParserBuilder {
 				.builderFrom(grammarString)
 				.build();
 
+//		Closer closer = new KnuthCloser(grammar);
+		Closer closer = ChenxCloser.builder(grammar).build();
+
 		// Take the grammar and determine the canonical collection
-		Set<State> canonicalCollection = createCanonicalCollection(grammar);
+		Set<State> canonicalCollection = createCanonicalCollection(grammar, closer);
 		// From the canonical collection we create the goto table and the action table.
 		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
 		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
@@ -254,7 +254,7 @@ public class ParserBuilder {
 		return gotoTable;
 	}
 
-	protected static Set<State> createCanonicalCollection(Grammar grammar) {
+	protected static Set<State> createCanonicalCollection(Grammar grammar, Closer closer) {
 		// Note to self: previously I used a LinkedHashSet here so that I kept the insertion order. I don't fully
 		// remember why I did this, but I think it was because I used a rather sloppy technique to get the nextState if
 		// it was already contained in the canonical collection. See the commented code below in this method. I replaced
@@ -265,7 +265,7 @@ public class ParserBuilder {
 		Deque<State> workList = new ArrayDeque<>();
 
 		// Determine the state from which to start
-		State startState = new State(closure(grammar, createStartKernel(grammar)));
+		State startState = new State(closer.closure(createStartKernel(grammar)));
 		canonicalCollection.add(startState);
 		workList.push(startState);
 
@@ -290,7 +290,7 @@ public class ParserBuilder {
 						.collect(Collectors.toSet());
 
 				// Create the next state by taking the closure of the kernel
-				State nextState = new State(closure(grammar, kernel));
+				State nextState = new State(closer.closure(kernel));
 
 				if (canonicalCollection.add(nextState)) {
 					workList.push(nextState);
@@ -326,57 +326,4 @@ public class ParserBuilder {
 				.map(startProduction -> new Item(startProduction, Set.of(Terminal.EOF), 0))
 				.collect(Collectors.toSet());
 	}
-
-	private static Set<Item> closure(Grammar grammar, Set<Item> items) {
-		Deque<Item> workList = new ArrayDeque<>(items);
-
-		// Here I previously also used a LinkedHashSet to keep insertion order. I don't remember why I did this. So I
-		// removed it. Test to make sure that it is ok.
-		Set<Item> closure = new /*Linked*/HashSet<>();
-		while (!workList.isEmpty()) {
-			Item item = workList.pop();
-			closure.add(item);
-
-			Symbol expectedSymbol = item.getExpectedSymbol();
-
-			// If there is an expected symbol (i.e. the dot pointer is before the last symbol in the rhs of the rule)
-			// and the symbol is non-terminal we must add items for all production / lookahead combinations to our
-			// closure. Note that we add it to the work list here, so that if the first symbol of the rhs is a
-			// non-terminal we recursively close over them as well.
-			if (expectedSymbol != null && !expectedSymbol.isTerminal()) {
-				Set<Terminal> lookaheadSet = determineLookahead(grammar, item);
-				Set<Production> productions = grammar.getProductions((NonTerminal)expectedSymbol);
-
-				for (Production production : productions) {
-					Item newItem = new Item(production, lookaheadSet, 0);
-					workList.add(newItem);
-				}
-			}
-		}
-
-		return closure;
-	}
-
-	private static Set<Terminal> determineLookahead(Grammar grammar, Item item) {
-		int nextPosition = item.getPosition() + 1;
-		List<Symbol> rhs = item.getProduction().getRhs();
-
-		// If the next position is equal to the length of the rhs the lookahead is the lookahead of the item.
-		if (nextPosition == rhs.size()) {
-			return item.getLookahead();
-		}
-
-		// Create a sublist that holds the symbols after the dot pointer in the item. Note that since the sublist is
-		// basically a view on a list this is a cheap operation. Alternatively we could have the iteration in
-		// calculateFirstSetForRemainingSymbols start at the next position.
-		List<Symbol> remainingSymbols = rhs.subList(nextPosition, rhs.size());
-		Set<Terminal> lookahead = grammar.calculateFirstSetForRemainingSymbols(remainingSymbols);
-
-		if (lookahead.remove(EPSILON)) {
-			lookahead.addAll(item.getLookahead());
-		}
-
-		return lookahead;
-	}
-
 }
