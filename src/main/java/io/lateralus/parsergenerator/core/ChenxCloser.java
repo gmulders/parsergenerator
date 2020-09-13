@@ -22,24 +22,25 @@ public class ChenxCloser extends AbstractCloser {
 		this.canVanishMap = canVanishMap;
 	}
 
-	protected Set<Terminal> determineLookahead(Item item) {
-		int nextPosition = item.getPosition() + 1;
-		List<Symbol> rhs = item.getProduction().getRhs();
+	@Override
+	protected Set<Terminal> determineLookahead(Production production, Set<Terminal> lookahead, int position) {
+		int nextPosition = position + 1;
+		List<Symbol> rhs = production.getRhs();
 
 		// If the next position is equal to the length of the rhs the lookahead is the lookahead of the item.
 		if (nextPosition == rhs.size()) {
-			return item.getLookahead();
+			return lookahead;
 		}
 
 		List<Symbol> remainingSymbols = rhs.subList(nextPosition, rhs.size());
 		Set<Terminal> tHeads = determineTHeads(remainingSymbols);
 
 		if (tHeads.isEmpty()) {
-			return item.getLookahead();
+			return lookahead;
 		}
 
 		if (tHeads.remove(EPSILON)) {
-			tHeads.addAll(item.getLookahead());
+			tHeads.addAll(lookahead);
 		}
 
 		return tHeads;
