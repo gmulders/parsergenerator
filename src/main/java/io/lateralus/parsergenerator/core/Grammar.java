@@ -118,12 +118,12 @@ public class Grammar {
 			for (Symbol symbol : production.getRhs()) {
 				rhs.add(internedSymbols.computeIfAbsent(symbol, identity()));
 			}
-			productions.add(new Production(lhs, rhs));
+			productions.add(new Production(production, lhs, rhs));
 			return this;
 		}
 
-		public Builder addProduction(NonTerminal lhs, List<Symbol> rhs) {
-			return addProduction(new Production(lhs, rhs));
+		public Builder addProduction(NonTerminal lhs, List<Symbol> rhs, String nodeName, boolean isBinary) {
+			return addProduction(new Production(lhs, rhs, nodeName, isBinary));
 		}
 
 		public Grammar build() throws GrammarException {
@@ -170,7 +170,7 @@ public class Grammar {
 
 		private void augmentGrammar(Set<NonTerminal> nonTerminals, SetMultimap<NonTerminal, Production> productionsMap) {
 			nonTerminals.add(START);
-			final Production startProduction = new Production(START, List.of(productions.get(0).getLhs()));
+			final Production startProduction = new Production(START, List.of(productions.get(0).getLhs()), "Root", false);
 			productionsMap.put(START, startProduction);
 		}
 

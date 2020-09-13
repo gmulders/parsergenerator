@@ -23,7 +23,9 @@ public class GrammarParser {
 	private static final Pattern SYMBOL_PATTERN = Pattern.compile("[a-zA-Z][a-zA-Z_0-9]*");
 	private static final Splitter PRODUCTION_SPLITTER = Splitter.on(Pattern.compile("->")).trimResults().omitEmptyStrings();
 	private static final Splitter PRODUCTION_OR_SPLITTER = Splitter.on(Pattern.compile("\\|")).trimResults().omitEmptyStrings();
+	private static final Splitter RHS_SPLITTER = Splitter.on(":").trimResults().omitEmptyStrings();
 	private static final Splitter SYMBOL_SPLITTER = Splitter.on(CharMatcher.whitespace()).trimResults().omitEmptyStrings();
+	public static final String EXPECTED_SYNTAX = "Expect <TERMINAL> -> <SYMBOL>* (: <NODE> (binary)?)? (| <SYMBOL>* (: <NODE> (binary)?)?)*";
 
 	private GrammarParser() {
 	}
@@ -49,25 +51,25 @@ public class GrammarParser {
 	public static Grammar.Builder builderFrom(String grammar) throws GrammarParserException {
 		// Note the use of LinkedHashSet to maintain the insertion order.
 		Set<String> nonTerminals = new LinkedHashSet<>();
-		Map<String, List<List<String>>> productionMap = new HashMap<>();
+		Map<String, List<RhsDef>> productionMap = new HashMap<>();
 
 		try (BufferedReader reader = new BufferedReader(new StringReader(grammar))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				List<String> parts = PRODUCTION_SPLITTER.splitToList(line);
 				if (parts.size() != 2) {
-					throw new GrammarParserException("Expect <TERMINAL> -> <SYMBOL>* (| <SYMBOL>)*");
+					throw new GrammarParserException("Expect <TERMINAL> -> <SYMBOL>* (: <NODE> (binary)?)? (| <SYMBOL>* (: <NODE> (binary)?)?)*");
 				}
 				String lhs = parts.get(0);
-				List<List<String>> rhs = PRODUCTION_OR_SPLITTER.splitToList(parts.get(1)).stream()
-						.map(rhsPart -> SYMBOL_SPLITTER.splitToList(rhsPart).stream()
-								.map(String::strip)
-								.collect(Collectors.toList())
-						)
-						.collect(Collectors.toList());
+
+				List<RhsDef> rhsDef = new ArrayList<>();
+				for(String rhs : PRODUCTION_OR_SPLITTER.split(parts.get(1))) {
+					rhsDef.add(parseRhsDef(rhs));
+				}
+
 				nonTerminals.add(lhs);
-				List<List<String>> currentRhs = productionMap.computeIfAbsent(lhs, a -> new ArrayList<>());
-				currentRhs.addAll(rhs);
+				List<RhsDef> currentRhsDef = productionMap.computeIfAbsent(lhs, a -> new ArrayList<>());
+				currentRhsDef.addAll(rhsDef);
 			}
 		} catch (IOException e) {
 			throw new GrammarParserException("Could not parse the grammar: \n" + grammar + "\n\n");
@@ -80,15 +82,51 @@ public class GrammarParser {
 				throw new GrammarParserException("The symbol '" + lhs + "' is not a valid symbol");
 			}
 			NonTerminal nonTerminal = new NonTerminal(lhs);
-			for (List<String> rhs : productionMap.get(lhs)) {
+			for (RhsDef rhsDef : productionMap.get(lhs)) {
 				List<Symbol> symbols = new ArrayList<>();
-				for (String symbolName : rhs) {
+				for (String symbolName : rhsDef.symbols) {
 					symbols.add(convertToSymbol(symbolName, nonTerminals));
 				}
-				builder.addProduction(nonTerminal, symbols);
+				builder.addProduction(nonTerminal, symbols, rhsDef.nodeName, rhsDef.isBinary);
 			}
 		}
 
 		return builder;
+	}
+
+	private static RhsDef parseRhsDef(String rhs) throws GrammarParserException {
+		List<String> rhsParts = RHS_SPLITTER.splitToList(rhs);
+		if (rhsParts.size() != 1 && rhsParts.size() != 2) {
+			throw new GrammarParserException(EXPECTED_SYNTAX);
+		}
+
+		List<String> symbols = SYMBOL_SPLITTER.splitToList(rhsParts.get(0)).stream()
+				.map(String::strip)
+				.collect(Collectors.toList());
+
+		if (rhsParts.size() == 1) {
+			return new RhsDef(symbols, null, false);
+		}
+
+		String nodeName = rhsParts.get(1);
+		boolean isBinary = nodeName.contains("binary");
+		if (isBinary) {
+			nodeName = nodeName.replace("binary", "");
+		}
+		nodeName = nodeName.strip();
+
+		return new RhsDef(symbols, nodeName, isBinary);
+	}
+
+	private static class RhsDef {
+		private final List<String> symbols;
+		private final String nodeName;
+		private final boolean isBinary;
+
+		private RhsDef(List<String> symbols, String nodeName, boolean isBinary) {
+			this.symbols = symbols;
+			this.nodeName = nodeName;
+			this.isBinary = isBinary;
+		}
 	}
 }
