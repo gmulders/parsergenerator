@@ -1,14 +1,9 @@
 package io.lateralus.parsergenerator.core;
 
-import com.google.common.collect.Sets;
-
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -18,61 +13,16 @@ import static java.util.function.Predicate.not;
 /**
  * Calculates the closure as discussed in the dissertation of Xin Chen (Measuring and extending LR(1) parser generation)
  */
-public class ChenxCloser implements Closer {
-
-	private final Grammar grammar;
+public class ChenxCloser extends AbstractCloser {
 
 	private final Map<Symbol, Boolean> canVanishMap;
 
 	private ChenxCloser(Grammar grammar, Map<Symbol, Boolean> canVanishMap) {
-		this.grammar = grammar;
+		super(grammar);
 		this.canVanishMap = canVanishMap;
 	}
 
-	@Override
-	public Set<Item> closure(Set<Item> items) {
-		Deque<Item> workList = new ArrayDeque<>(items);
-
-		Set<Item> closure = new HashSet<>();
-		while (!workList.isEmpty()) {
-			Item item = workList.pop();
-			closure.add(item);
-
-			Symbol expectedSymbol = item.getExpectedSymbol();
-
-			// If there is an expected symbol (i.e. the dot pointer is before the last symbol in the rhs of the rule)
-			// and the symbol is non-terminal we must add items for all production / lookahead combinations to our
-			// closure. Note that we add it to the work list here, so that if the first symbol of the rhs is a
-			// non-terminal we recursively close over them as well.
-			if (expectedSymbol == null || expectedSymbol.isTerminal()) {
-				continue;
-			}
-
-			Set<Terminal> lookaheadSet = determineContext(item);
-			Set<Production> productions = grammar.getProductions((NonTerminal)expectedSymbol);
-
-			for (Production production : productions) {
-				Optional<Item> optionalExistingItemForProduction = closure.stream()
-						.filter(closureItem -> closureItem.getPosition() == 0 && closureItem.getProduction().equals(production))
-						.findAny();
-
-				if (optionalExistingItemForProduction.isPresent()) {
-					Item existingItemForProduction = optionalExistingItemForProduction.get();
-					if (existingItemForProduction.getLookahead().containsAll(lookaheadSet)) {
-						continue;
-					}
-					closure.remove(existingItemForProduction);
-					lookaheadSet = Sets.union(lookaheadSet, existingItemForProduction.getLookahead());
-				}
-				Item newItem = new Item(production, lookaheadSet, 0);
-				workList.add(newItem);
-			}
-		}
-
-		return closure;
-	}
-
-	private Set<Terminal> determineContext(Item item) {
+	protected Set<Terminal> determineLookahead(Item item) {
 		int nextPosition = item.getPosition() + 1;
 		List<Symbol> rhs = item.getProduction().getRhs();
 
