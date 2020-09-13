@@ -1,8 +1,5 @@
 package io.lateralus.parsergenerator.core;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -11,45 +8,13 @@ import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
 /**
  * Calculates the closure as defined by Knuth.
  */
-public class KnuthCloser implements Closer {
-
-	private final Grammar grammar;
+public class KnuthCloser extends AbstractCloser {
 
 	public KnuthCloser(Grammar grammar) {
-		this.grammar = grammar;
+		super(grammar);
 	}
 
-	public Set<Item> closure(Set<Item> items) {
-		Deque<Item> workList = new ArrayDeque<>(items);
-
-		// Here I previously also used a LinkedHashSet to keep insertion order. I don't remember why I did this. So I
-		// removed it. Test to make sure that it is ok.
-		Set<Item> closure = new /*Linked*/HashSet<>();
-		while (!workList.isEmpty()) {
-			Item item = workList.pop();
-			closure.add(item);
-
-			Symbol expectedSymbol = item.getExpectedSymbol();
-
-			// If there is an expected symbol (i.e. the dot pointer is before the last symbol in the rhs of the rule)
-			// and the symbol is non-terminal we must add items for all production / lookahead combinations to our
-			// closure. Note that we add it to the work list here, so that if the first symbol of the rhs is a
-			// non-terminal we recursively close over them as well.
-			if (expectedSymbol != null && !expectedSymbol.isTerminal()) {
-				Set<Terminal> lookaheadSet = determineLookahead(item);
-				Set<Production> productions = grammar.getProductions((NonTerminal)expectedSymbol);
-
-				for (Production production : productions) {
-					Item newItem = new Item(production, lookaheadSet, 0);
-					workList.add(newItem);
-				}
-			}
-		}
-
-		return closure;
-	}
-
-	private Set<Terminal> determineLookahead(Item item) {
+	protected Set<Terminal> determineLookahead(Item item) {
 		int nextPosition = item.getPosition() + 1;
 		List<Symbol> rhs = item.getProduction().getRhs();
 
