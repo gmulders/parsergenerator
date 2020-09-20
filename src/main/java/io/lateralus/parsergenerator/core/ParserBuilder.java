@@ -4,19 +4,28 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Table;
+import io.lateralus.parsergenerator.codegenerator.CodeGenerationException;
 import io.lateralus.parsergenerator.codegenerator.CodeGenerator;
+import io.lateralus.parsergenerator.codegenerator.simple.BasicParserCodeGenerator;
+import io.lateralus.parsergenerator.core.definition.ParserDefinition;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ParserBuilder {
 
-	public static void main(String[] args) throws GrammarParserException, GrammarException {
+	public static void main(String[] args) throws GrammarParserException, GrammarException, CodeGenerationException {
 
 		// https://zaa.ch/jison/try/usf/index.html
 		// %%
@@ -141,6 +150,20 @@ public class ParserBuilder {
 		// 29
 		//Y -> times F Y . #lookaheads= plus right
 
+		// %%
+		//E
+		//    : E plus T
+		//    | T
+		//    ;
+		//T
+		//    : T times F
+		//    | F
+		//    ;
+		//F
+		//    : left E right
+		//    | id
+		//    ;
+
 //		String grammarString =
 //				"E -> T plus E\n" +
 //				"E -> T\n" +
@@ -149,22 +172,30 @@ public class ParserBuilder {
 //				"F -> left E right\n" +
 //				"F -> id";
 
-        // This grammar string does not work yet; we need to add some sort of annotation so that we know what the name
-		// for the node that we will generate should be.
 //		String grammarString =
-//				"E (Plus) -> T plus E\n" +
+//				"E -> E plus T\n" +
 //				"E -> T\n" +
-//				"T (Product) -> F times T\n" +
+//				"T -> T times F\n" +
 //				"T -> F\n" +
-//				"F (Factor) -> left E right\n" +
+//				"F -> left E right\n" +
 //				"F -> id\n";
 
+        // This grammar string does not work yet; we need to add some sort of annotation so that we know what the name
+		// for the node that we will generate should be.
 		String grammarString =
-				"E -> T X\n" +
-				"X -> plus T X | ε\n" +
-				"T -> F Y\n" +
-				"Y -> times F Y | ε\n" +
-				"F -> left E right | id";
+				"Expression -> Term\n" +
+				"Expression -> Expression(lhs) plus Term(rhs) : Plus binary\n" +
+				"Term -> Factor\n" +
+				"Term -> Term(lhs) times Factor(rhs) : Product binary\n" +
+				"Factor -> left Expression right : Paren\n" +
+				"Factor -> id : Number\n";
+
+//		String grammarString =
+//				"E -> T X\n" +
+//				"X -> plus T X | ε\n" +
+//				"T -> F Y\n" +
+//				"Y -> times F Y | ε\n" +
+//				"F -> left E right | id";
 
 		// First parse the input grammar into an internal representation
 		Grammar grammar = GrammarParser
@@ -174,28 +205,44 @@ public class ParserBuilder {
 //		Closer closer = new KnuthCloser(grammar);
 		Closer closer = ChenxCloser.builder(grammar).build();
 
-		// Take the grammar and determine the canonical collection
-		Set<State> canonicalCollection = createCanonicalCollection(grammar, closer);
-		// From the canonical collection we create the goto table and the action table.
-		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
-		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
-
-
 		for (Symbol symbol : grammar.getNonTerminals()) {
 			System.out.println(symbol + " -> " + grammar.firstSet(symbol));
 		}
 		System.out.println();
+
+		// Take the grammar and determine the canonical collection
+		Set<State> canonicalCollection = createCanonicalCollection(grammar, closer);
+
 		int i = 0;
 		for (State state : canonicalCollection) {
 			System.out.println(String.format("%02d", i++) + " " + state);
 		}
+
+		// From the canonical collection we create the goto table and the action table.
+		Table<State, NonTerminal, State> gotoTable = buildGotoTable(canonicalCollection);
+		Table<State, Terminal, Action> actionTable = buildActionTable(canonicalCollection);
+
 		System.out.println();
 		gotoTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
+
 		System.out.println();
 		actionTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
 
-		CodeGenerator codeGenerator = new CodeGenerator(Path.of(args[0]));
-		codeGenerator.outputParser();
+		ParserDefinition parserDefinition = new ParserDefinition(grammar);
+		CodeGenerator<BasicParserCodeGenerator.Properties, String> codeGenerator = new BasicParserCodeGenerator();
+		codeGenerator.setProperties(new BasicParserCodeGenerator.Properties("Super", "test.parser", "test.lexer"));
+		codeGenerator.generate(parserDefinition)
+				.forEach(f -> {
+					System.out.println("=============== " + f.getName() + " ===============");
+					System.out.println(f.getContents());
+					try {
+						Path path = Path.of("src/test-out/java/", f.getName()).toAbsolutePath();
+						Files.createDirectories(path.getParent());
+						Files.write(path, f.getContents().getBytes(StandardCharsets.UTF_8));
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				});
 	}
 
 	private static Table<State, Terminal, Action> buildActionTable(Set<State> canonicalCollection) {
@@ -259,13 +306,14 @@ public class ParserBuilder {
 		// remember why I did this, but I think it was because I used a rather sloppy technique to get the nextState if
 		// it was already contained in the canonical collection. See the commented code below in this method. I replaced
 		// this with a map that holds the transitions. Test to be sure!!!!
-		Set<State> canonicalCollection = new /*Linked*/HashSet<>();
-		Table<State, Symbol, State> transitions = HashBasedTable.create();
+		Set<State> canonicalCollection = Collections.newSetFromMap(new IdentityHashMap<>());
+		Map<State, State> internedStates = new HashMap<>();
 
 		Deque<State> workList = new ArrayDeque<>();
 
 		// Determine the state from which to start
 		State startState = new State(closer.closure(createStartKernel(grammar)));
+		internedStates.put(startState, startState);
 		canonicalCollection.add(startState);
 		workList.push(startState);
 
@@ -290,31 +338,14 @@ public class ParserBuilder {
 						.collect(Collectors.toSet());
 
 				// Create the next state by taking the closure of the kernel
-				State nextState = new State(closer.closure(kernel));
+				State nextState = internedStates.computeIfAbsent(new State(closer.closure(kernel)), Function.identity());
 
 				if (canonicalCollection.add(nextState)) {
 					workList.push(nextState);
 				}
-
-				transitions.put(currentState, expectedSymbol, nextState);
-
-				//if (isNew) {
-				//	workList.push(nextState);
-				//	currentState.getTransitions().put(expectedSymbol, nextState);
-				//} else {
-				//	State nextStateOriginal = canonicalCollection.stream()
-				//			.filter(Predicate.isEqual(nextState))
-				//			.findFirst()
-				//			.orElseThrow();
-				//	currentState.getTransitions().put(expectedSymbol, nextStateOriginal);
-				//}
+				currentState.getTransitions().put(expectedSymbol, nextState);
 			}
 		}
-
-		for (Table.Cell<State, Symbol, State> cell : transitions.cellSet()) {
-			cell.getRowKey().getTransitions().put(cell.getColumnKey(), cell.getValue());
-		}
-
 		return canonicalCollection;
 	}
 

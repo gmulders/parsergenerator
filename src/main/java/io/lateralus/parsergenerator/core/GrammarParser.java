@@ -20,7 +20,7 @@ import static io.lateralus.parsergenerator.core.Terminal.EPSILON;
 
 public class GrammarParser {
 
-	private static final Pattern SYMBOL_PATTERN = Pattern.compile("[a-zA-Z][a-zA-Z_0-9]*");
+	private static final Pattern SYMBOL_PATTERN = Pattern.compile("([a-zA-Z][a-zA-Z_0-9]*)(\\(([a-z][a-zA-Z0-9]*)\\))?");
 	private static final Splitter PRODUCTION_SPLITTER = Splitter.on(Pattern.compile("->")).trimResults().omitEmptyStrings();
 	private static final Splitter PRODUCTION_OR_SPLITTER = Splitter.on(Pattern.compile("\\|")).trimResults().omitEmptyStrings();
 	private static final Splitter RHS_SPLITTER = Splitter.on(":").trimResults().omitEmptyStrings();
@@ -38,9 +38,6 @@ public class GrammarParser {
 	private static Symbol convertToSymbol(String symbol, Set<String> nonTerminals) throws GrammarParserException {
 		if (symbol.equals(EPSILON.getName())) {
 			return EPSILON;
-		}
-		if (!isValidSymbol(symbol)) {
-			throw new GrammarParserException("The symbol '" + symbol + "' is not a valid symbol");
 		}
 		if (nonTerminals.contains(symbol)) {
 			return new NonTerminal(symbol);
@@ -87,7 +84,7 @@ public class GrammarParser {
 				for (String symbolName : rhsDef.symbols) {
 					symbols.add(convertToSymbol(symbolName, nonTerminals));
 				}
-				builder.addProduction(nonTerminal, symbols, rhsDef.nodeName, rhsDef.isBinary);
+				builder.addProduction(nonTerminal, symbols, rhsDef.symbolNames, rhsDef.nodeName, rhsDef.isBinary);
 			}
 		}
 
@@ -100,12 +97,24 @@ public class GrammarParser {
 			throw new GrammarParserException(EXPECTED_SYNTAX);
 		}
 
-		List<String> symbols = SYMBOL_SPLITTER.splitToList(rhsParts.get(0)).stream()
+		List<String> symbolsDefs = SYMBOL_SPLITTER.splitToStream(rhsParts.get(0))
 				.map(String::strip)
 				.collect(Collectors.toList());
 
+		List<String> symbols = new ArrayList<>();
+		List<String> symbolNames = new ArrayList<>();
+
+		for (String symbolDef : symbolsDefs) {
+			Matcher matcher = SYMBOL_PATTERN.matcher(symbolDef);
+			if (!matcher.matches()) {
+				throw new GrammarParserException("The symbol '" + symbolDef + "' is not a valid symbol");
+			}
+			symbols.add(matcher.group(1));
+			symbolNames.add(matcher.group(3));
+		}
+
 		if (rhsParts.size() == 1) {
-			return new RhsDef(symbols, null, false);
+			return new RhsDef(symbols, symbolNames, null, false);
 		}
 
 		String nodeName = rhsParts.get(1);
@@ -115,16 +124,18 @@ public class GrammarParser {
 		}
 		nodeName = nodeName.strip();
 
-		return new RhsDef(symbols, nodeName, isBinary);
+		return new RhsDef(symbols, symbolNames, nodeName, isBinary);
 	}
 
 	private static class RhsDef {
 		private final List<String> symbols;
+		private final List<String> symbolNames;
 		private final String nodeName;
 		private final boolean isBinary;
 
-		private RhsDef(List<String> symbols, String nodeName, boolean isBinary) {
+		private RhsDef(List<String> symbols, List<String> symbolNames, String nodeName, boolean isBinary) {
 			this.symbols = symbols;
+			this.symbolNames = symbolNames;
 			this.nodeName = nodeName;
 			this.isBinary = isBinary;
 		}

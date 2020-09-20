@@ -5,6 +5,7 @@ import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,6 +84,10 @@ public class Grammar {
 		return productions.get(lhs);
 	}
 
+	public Collection<Production> getProductions() {
+		return productions.values();
+	}
+
 	public Set<Symbol> getSymbols() {
 		return symbols;
 	}
@@ -122,8 +127,8 @@ public class Grammar {
 			return this;
 		}
 
-		public Builder addProduction(NonTerminal lhs, List<Symbol> rhs, String nodeName, boolean isBinary) {
-			return addProduction(new Production(lhs, rhs, nodeName, isBinary));
+		public Builder addProduction(NonTerminal lhs, List<Symbol> rhs, List<String> rhsNames, String nodeName, boolean isBinary) {
+			return addProduction(new Production(lhs, rhs, rhsNames, nodeName, isBinary));
 		}
 
 		public Grammar build() throws GrammarException {
@@ -170,7 +175,7 @@ public class Grammar {
 
 		private void augmentGrammar(Set<NonTerminal> nonTerminals, SetMultimap<NonTerminal, Production> productionsMap) {
 			nonTerminals.add(START);
-			final Production startProduction = new Production(START, List.of(productions.get(0).getLhs()), "Root", false);
+			final Production startProduction = new Production(START, List.of(productions.get(0).getLhs()), null, "Root", false);
 			productionsMap.put(START, startProduction);
 		}
 

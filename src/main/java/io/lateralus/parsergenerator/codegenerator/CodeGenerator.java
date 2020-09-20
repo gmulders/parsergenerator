@@ -1,20 +1,16 @@
 package io.lateralus.parsergenerator.codegenerator;
 
-import java.nio.file.Path;
+import io.lateralus.parsergenerator.core.definition.ParserDefinition;
+
+import java.util.Set;
 
 /**
- * TODO: This should probably become an interface; see what I did for the lexergenerator.
+ * Represents a code codegenerator.
+ * @param <T> The type of the properties object
  */
-public class CodeGenerator {
+public interface CodeGenerator<T, S> {
 
-	private final Path path;
+	void setProperties(T properties);
 
-
-	public CodeGenerator(Path path) {
-		this.path = path;
-	}
-
-	public void outputParser() {
-		// Generate code
-	}
+	Set<SourceFile<S>> generate(ParserDefinition lexerDefinition) throws CodeGenerationException;
 }
