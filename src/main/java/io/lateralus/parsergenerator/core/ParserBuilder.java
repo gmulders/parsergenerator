@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -184,11 +185,11 @@ public class ParserBuilder {
 		// for the node that we will generate should be.
 		String grammarString =
 				"Expression -> Term\n" +
-				"Expression -> Expression(lhs) plus Term(rhs) : Plus binary\n" +
+				"Expression -> Expression(lhs) PLUS Term(rhs) : Plus binary\n" +
 				"Term -> Factor\n" +
-				"Term -> Term(lhs) times Factor(rhs) : Product binary\n" +
-				"Factor -> left Expression right : Paren\n" +
-				"Factor -> id : Number\n";
+				"Term -> Term(lhs) TIMES Factor(rhs) : Product binary\n" +
+				"Factor -> LEFT_PAREN Expression RIGHT_PAREN : Paren\n" +
+				"Factor -> NUMBER : Number\n";
 
 //		String grammarString =
 //				"E -> T X\n" +
@@ -228,7 +229,9 @@ public class ParserBuilder {
 		System.out.println();
 		actionTable.cellSet().forEach(cell -> System.out.println(cell.getRowKey() + " + " + cell.getColumnKey() + " --> " + cell.getValue()));
 
-		ParserDefinition parserDefinition = new ParserDefinition(grammar);
+		List<Terminal> orderedTerminalList = List.of(Terminal.EOF, new Terminal("PLUS"), new Terminal("TIMES"),
+				new Terminal("LEFT_PAREN"), new Terminal("RIGHT_PAREN"), new Terminal("NUMBER"));
+		ParserDefinition parserDefinition = new ParserDefinition(grammar, actionTable, gotoTable, orderedTerminalList);
 		CodeGenerator<BasicParserCodeGenerator.Properties, String> codeGenerator = new BasicParserCodeGenerator();
 		codeGenerator.setProperties(new BasicParserCodeGenerator.Properties("Super", "test.parser", "test.lexer"));
 		codeGenerator.generate(parserDefinition)

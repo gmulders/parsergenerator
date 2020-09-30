@@ -2,45 +2,45 @@ package ${parserPackageName};
 
 import ${parserPackageName}.nodes.Node;
 
-import static ${parserPackageName}.Action.ActionType.ACCEPT;
-import static ${parserPackageName}.Action.ActionType.REDUCE;
-import static ${parserPackageName}.Action.ActionType.SHIFT;
+public abstract class Action {
 
-public class Action {
-
-	public final ActionType type;
-	public final Reduction reduction;
-	public final int size;
-	public final int state;
-	public final int productionId;
-
-	public static Action accept() {
-		return new Action(ACCEPT, null, -1, -1, -1);
+	public static class Accept extends Action {
+		private Accept() {}
 	}
 
-	public static Action reduce(Reduction reduction, int size, int productionId) {
-		return new Action(REDUCE, reduction, size, productionId, -1);
+	public static class Reduce extends Action {
+		public final Reduction reduction;
+		public final int size;
+		public final int id;
+
+		private Reduce(Reduction reduction, int size, int id) {
+			this.reduction = reduction;
+			this.size = size;
+			this.id = id;
+		}
+	}
+
+	public static class Shift extends Action {
+		public final int state;
+
+		private Shift(int state) {
+			this.state = state;
+		}
+	}
+
+	public static Action accept() {
+		return new Accept();
+	}
+
+	public static Action reduce(Reduction reduction, int size, int id) {
+		return new Reduce(reduction, size, id);
 	}
 
 	public static Action shift(int state) {
-		return new Action(SHIFT, null, -1, -1, state);
+		return new Shift(state);
 	}
 
-	private Action(ActionType type, Reduction reduction, int size, int productionId, int state) {
-		this.type = type;
-		this.reduction = reduction;
-		this.size = size;
-		this.productionId = productionId;
-		this.state = state;
-	}
-
-	public enum ActionType {
-		SHIFT,
-		REDUCE,
-		ACCEPT
-	}
-
-	public interface Reduction {
-		<T extends Node> T reduce(Object[] items);
+	public interface Reduction<T extends Node> {
+		T reduce(Object[] items);
 	}
 }

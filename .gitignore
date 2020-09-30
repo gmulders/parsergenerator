@@ -5,6 +5,8 @@
 /.settings/
 /bin/
 /build/
+/src/test-lexer/
+/src/test-out/
 /**/target/
 /**/*.iml
 *.tmp

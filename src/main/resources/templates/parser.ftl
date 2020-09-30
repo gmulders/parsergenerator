@@ -3,18 +3,17 @@ package ${parserPackageName};
 import ${lexerPackageName}.Lexer;
 import ${lexerPackageName}.LexerException;
 import ${lexerPackageName}.Token;
-import ${parserPackageName}.nodes.Node;
+import ${parserPackageName}.Action.Accept;
+import ${parserPackageName}.Action.Reduce;
+import ${parserPackageName}.Action.Shift;
+import ${parserPackageName}.nodes.*;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import static ${parserPackageName}.Action.ActionType.ACCEPT;
-import static ${parserPackageName}.Action.ActionType.REDUCE;
-import static ${parserPackageName}.Action.ActionType.SHIFT;
-
 public class Parser {
 
-	private static Action[][] ACTION_TABLE;
+	private static Action[][] ACTION_TABLE = ${actionTableJava};
 	private static int[][] GOTO_TABLE;
 
 	private final Lexer lexer;
@@ -36,16 +35,17 @@ public class Parser {
 				throw new ParserException("");
 			}
 
-			if (action.type == SHIFT) {
+			if (action instanceof Shift) {
 				nodeStack.push(token);
-				stateStack.push(action.state);
+				stateStack.push(((Shift)action).state);
 				token = nextToken();
-			} else if (action.type == REDUCE) {
-				Object[] nodes = popNodes(nodeStack, action.size);
-				nodeStack.push(action.reduction.reduce(nodes));
-				state = popStates(stateStack, action.size);
-				stateStack.push(GOTO_TABLE[state][action.productionId]);
-			} else if (action.type == ACCEPT) {
+			} else if (action instanceof Reduce) {
+				Reduce reduce = (Reduce)action;
+				Object[] nodes = popNodes(nodeStack, reduce.size);
+				nodeStack.push(reduce.reduction.reduce(nodes));
+				state = popStates(stateStack, reduce.size);
+				stateStack.push(GOTO_TABLE[state][reduce.id]);
+			} else if (action instanceof Accept) {
 				return (Node)nodeStack.pop();
 			}
 		}

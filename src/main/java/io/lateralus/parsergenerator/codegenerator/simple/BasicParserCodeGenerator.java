@@ -1,14 +1,18 @@
 package io.lateralus.parsergenerator.codegenerator.simple;
 
+import com.google.common.collect.Table;
 import freemarker.cache.ClassTemplateLoader;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import io.lateralus.parsergenerator.codegenerator.CodeGenerationException;
 import io.lateralus.parsergenerator.codegenerator.SourceFile;
+import io.lateralus.parsergenerator.core.Action;
 import io.lateralus.parsergenerator.core.Grammar;
 import io.lateralus.parsergenerator.core.NonTerminal;
 import io.lateralus.parsergenerator.core.Production;
+import io.lateralus.parsergenerator.core.State;
 import io.lateralus.parsergenerator.core.Symbol;
+import io.lateralus.parsergenerator.core.Terminal;
 import io.lateralus.parsergenerator.core.definition.ParserDefinition;
 
 import java.io.File;
@@ -25,6 +29,7 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.CaseFormat.LOWER_CAMEL;
 import static com.google.common.base.CaseFormat.UPPER_CAMEL;
+import static com.google.common.base.CaseFormat.UPPER_UNDERSCORE;
 import static java.util.function.Predicate.not;
 
 /**
@@ -61,9 +66,74 @@ public class BasicParserCodeGenerator extends AbstractFreeMarkerCodeGenerator<Ba
 		Map<String, Object> model = createBaseModel();
 		result.add(createSourceFile("action.ftl", "Action.java", "", model));
 		result.add(createSourceFile("parser-exception.ftl", "ParserException.java", "", model));
+
+		// Maak een map van State -> Integer
+		// Gooi alle states uit de gotoTable en de actionTable op een hoop en maak daar de map uit.
+		Set<State> states = new HashSet<>(parserDefinition.getActionTable().rowKeySet());
+		states.addAll(parserDefinition.getGotoTable().rowKeySet());
+		states.addAll(parserDefinition.getGotoTable().values());
+
+		List<State> stateList = new ArrayList<>(states);
+		Map<State, Integer> stateIntegerMap = new HashMap<>();
+		for (int i = 0; i < stateList.size(); i++) {
+			stateIntegerMap.put(stateList.get(i), i);
+		}
+
+		String actionTableJava = createActionTableJava(parserDefinition, stateList, stateIntegerMap);
+		model.put("actionTableJava", actionTableJava);
 		result.add(createSourceFile("parser.ftl", "Parser.java", "", model));
 
 		return result;
+	}
+
+	private String createActionTableJava(ParserDefinition parserDefinition, List<State> stateList, Map<State, Integer> stateIntegerMap) {
+
+		Table<State, Terminal, Action> actionTable = parserDefinition.getActionTable();
+		List<Terminal> terminalList = parserDefinition.getOrderedTerminalList();
+
+		StringBuilder builder = new StringBuilder("new Action[][] { ");
+		for (int i = 0; i < stateList.size(); i++) {
+			State state = stateList.get(i);
+			builder.append("{");
+			for (int j = 0; j < terminalList.size(); j++) {
+				Terminal terminal = terminalList.get(j);
+				Action action = actionTable.get(state, terminal);
+				if (action == null) {
+					builder.append("null");
+				} else {
+					switch (action.getActionType()) {
+						case SHIFT:
+							int stateInt = stateIntegerMap.get(action.getState());
+							builder.append("Action.shift(").append(stateInt).append(")");
+							break;
+						case REDUCE:
+							String nodeName = action.getProduction().getNodeName();
+							if (nodeName == null) {
+								nodeName = action.getProduction().getLhs().getName();
+							}
+							if (action.getProduction().getRhs().size() == 1 && !action.getProduction().getRhs().get(0).isTerminal()) {
+								builder.append("Action.reduce(items -> (").append(nodeName).append("Node)items[0], 2, 2)");
+							} else {
+								builder.append("Action.reduce(items -> new ").append(nodeName).append("Node(null), 2, 2)");
+							}
+							break;
+						case ACCEPT:
+							builder.append("Action.accept()");
+							break;
+					}
+				}
+				if (j != terminalList.size() - 1) {
+					builder.append(",");
+				}
+			}
+			builder.append("}");
+			if (i != stateList.size() - 1) {
+				builder.append(",\n");
+			}
+		}
+
+		builder.append("}");
+		return builder.toString();
 	}
 
 	private Set<SourceFile<String>> createNodes(ParserDefinition parserDefinition) throws CodeGenerationException {
@@ -197,10 +267,12 @@ public class BasicParserCodeGenerator extends AbstractFreeMarkerCodeGenerator<Ba
 				rhsName = symbol.getName();
 			}
 			String typeName = "Token";
+			String paramName = upperUnderscoreToLowerCamel(rhsName);
 			if (!symbol.isTerminal()) {
 				typeName = symbol.getName() + "Node";
+				paramName = upperCamelToLowerCamel(rhsName);
 			}
-			result.add(new Parameter(toLowerCamel(rhsName), typeName));
+			result.add(new Parameter(paramName, typeName));
 		}
 
 		return result;
@@ -209,16 +281,20 @@ public class BasicParserCodeGenerator extends AbstractFreeMarkerCodeGenerator<Ba
 	private String determineFirstTokenName(Production production) {
 		for (int i = 0; i < production.getRhs().size(); i++) {
 			Symbol symbol = production.getRhs().get(i);
-			String rhsName = production.getRhsNames().get(i);
 			if (symbol.isTerminal()) {
-				return rhsName != null ? rhsName : symbol.getName();
+				String rhsName = production.getRhsNames().get(i);
+				return upperUnderscoreToLowerCamel(rhsName != null ? rhsName : symbol.getName());
 			}
 		}
 		return production.getRhsNames().get(0) + "Node.getToken()";
 	}
 
-	private static String toLowerCamel(String name) {
+	private static String upperCamelToLowerCamel(String name) {
 		return UPPER_CAMEL.to(LOWER_CAMEL, name);
+	}
+
+	private static String upperUnderscoreToLowerCamel(String name) {
+		return UPPER_UNDERSCORE.to(LOWER_CAMEL, name);
 	}
 
 	private static String toUpperCamel(String name) {
